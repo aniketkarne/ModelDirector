@@ -1,3 +1,5 @@
+
+
 # ModelDirector
 
 ![Hero](docs/hero.jpg)
@@ -83,17 +85,11 @@ caller.
 ## Install
 
 ```bash
-# Core (SDK + CLI)
+# Core (SDK + CLI + REST)
 pip install modeldirector
-
-# With REST adapter
-pip install "modeldirector[rest]"
 
 # With MCP adapter (for Claude Desktop, Continue, etc.)
 pip install "modeldirector[mcp]"
-
-# Everything
-pip install "modeldirector[all]"
 ```
 
 Or from this repo:
