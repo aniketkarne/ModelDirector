@@ -99,7 +99,7 @@ pip install "modeldirector[all]"
 Or from this repo:
 
 ```bash
-git clone https://github.com/aniketkarne-com/ModelDirector
+git clone https://github.com/aniketkarne/ModelDirector
 cd ModelDirector
 uv sync --all-extras
 ```
@@ -113,7 +113,7 @@ uv sync --all-extras
     ```yaml
     selector:
       provider: openrouter
-      model: anthropic/claude-3.5-haiku  # small, fast, JSON-reliable
+      model: openai/gpt-4o-mini   # small, fast, JSON-reliable
       temperature: 0.0
 
     policy:
@@ -217,11 +217,20 @@ uv sync --all-extras
 
 ![How it works](docs/how-it-works.jpg)
 
-The selector is a small, fast LLM (e.g. `claude-3.5-haiku`, `gpt-4o-mini`,
-`qwen3-32b`) that gets a structured JSON prompt with your task, every
-candidate's profile (description, capabilities, **strengths**, and **real
-cost per 1M tokens**), and a strict scoring rubric. It returns scores only —
-the decision logic is yours.
+The selector is a small, fast LLM that gets a structured JSON prompt with your task, every
+candidate's profile (description, capabilities, **strengths**, and **real cost per 1M
+tokens**), and a strict scoring rubric. It returns scores only — the decision logic is yours.
+
+**Recommended selector:** a small model from a *different vendor* than your candidates
+(e.g. `openai/gpt-4o-mini` for an Anthropic-heavy candidate set, or vice versa).
+Same-vendor selectors have been shown to systematically favour their own family's
+capabilities in their own scoring — the policy then rubber-stamps that bias. Pick
+cross-vendor and you get a more honest score.
+
+`examples/config.yaml` ships with `openai/gpt-4o-mini` as the selector and an
+Anthropic-heavy candidate set on purpose; swap to your own providers as needed.
+Other small JSON-reliable options: `anthropic/claude-haiku-4-5`,
+`openai/gpt-4.1-mini`, `google/gemini-2.5-flash`, `qwen/qwen-2.5-7b-instruct`.
 
 **Three built-in policies:**
 
@@ -293,7 +302,7 @@ $ pytest tests/ -q -m "not integration"
 
 Includes:
 
-- **43 unit tests** for the policy engine, config loader, cost estimator,
+- **47 unit tests** for the policy engine, config loader, cost estimator,
   and selector (no network) — `pytest tests/`
 - **4 integration tests** that hit OpenRouter with a real selector LLM —
   `pytest tests/test_integration.py` (skipped automatically if
@@ -326,7 +335,8 @@ and re-rendered below.
 
 ### Latest run
 
-> Captured 2026-06-07 with `selector: anthropic/claude-3.5-haiku` and a
+> Captured 2026-06-07 with `selector: openai/gpt-4o-mini` (cross-vendor —
+> Anthropic-heavy candidate set) and a
 > 3-model candidate set (`gpt5mini = gpt-4o-mini`,
 > `sonnet = claude-3.5-sonnet`, `opus = claude-opus-4`) with real
 > per-1M-token USD costs. 30 tasks, 8 categories.
@@ -401,7 +411,7 @@ modeldirector/
 │   └── run_benchmark.py     # 30-task real-LLM benchmark
 ├── examples/
 │   └── config.yaml          # ready-to-use config
-├── tests/                   # 43 unit + 4 integration tests
+├── tests/                   # 47 unit + 4 integration tests
 ├── docs/
 │   ├── hero.jpg             # README hero (top)
 │   └── how-it-works.jpg     # "How it works" section diagram
@@ -443,7 +453,7 @@ MIT. See [LICENSE](LICENSE).
 ## Contributing
 
 PRs welcome. Bug reports and feature requests go in
-[GitHub Issues](https://github.com/aniketkarne-com/ModelDirector/issues).
+[GitHub Issues](https://github.com/aniketkarne/ModelDirector/issues).
 
 For substantial changes, open an issue first to discuss the design — this
 project prizes a small, stable API surface.

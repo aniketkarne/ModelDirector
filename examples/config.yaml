@@ -11,8 +11,7 @@
 
 selector:
   provider: openrouter
-  model: anthropic/claude-3.5-haiku
-  # api_key is read from $OPENROUTER_API_KEY by default.
+  model: openai/gpt-4o-mini     # cross-vendor selector (see "How it works")
   temperature: 0.0
 
 policy:
