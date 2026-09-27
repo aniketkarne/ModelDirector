@@ -120,11 +120,48 @@ class ModelProfile(BaseModel):
 # --- Selector -----------------------------------------------------------------
 
 
-class SelectorConfig(BaseModel):
-    """Configuration of the LLM that scores the candidates."""
+# Supported selector backends. ``llm`` is the default and asks a configurable
+# LiteLLM model to score the candidates. ``laya`` uses the Laya decision
+# engine (https://github.com/NandhaKishorM/laya) - a non-autoregressive
+# System-1 model that scores in a single forward pass on CPU/GPU.
+SelectorBackend = Literal["llm", "laya"]
 
-    provider: str = Field(..., min_length=1, description="LiteLLM provider, e.g. 'openrouter', 'openai'")
-    model: str = Field(..., min_length=1, description="Model name in LiteLLM format")
+
+class SelectorConfig(BaseModel):
+    """Configuration of the selector that scores the candidates.
+
+    Two backends are supported:
+
+    * ``llm``  (default) - ask a configurable LLM via LiteLLM. The model
+      is named by ``provider`` + ``model`` and authenticated by ``api_key``.
+    * ``laya`` - use the Laya decision engine. ``laya_model`` selects the
+      checkpoint (e.g. ``"convaiinnovations/laya"`` or ``"multilingual"``);
+      ``provider`` / ``model`` / ``api_key`` are unused in this mode.
+    """
+
+    backend: SelectorBackend = Field(
+        "llm",
+        description=(
+            "Selector backend. 'llm' (default) uses a LiteLLM-routed LLM. "
+            "'laya' uses the Laya decision engine (single forward pass, "
+            "CPU/GPU, no per-token cost)."
+        ),
+    )
+
+    # --- LLM backend fields (used when backend == 'llm') ---
+    provider: str = Field(
+        "openrouter",
+        min_length=1,
+        description="LiteLLM provider, e.g. 'openrouter', 'openai'",
+    )
+    model: str | None = Field(
+        None,
+        min_length=1,
+        description=(
+            "Model name in LiteLLM format. Required when backend == 'llm'; "
+            "ignored otherwise."
+        ),
+    )
     api_key: str | None = Field(
         None,
         description=(
@@ -136,8 +173,37 @@ class SelectorConfig(BaseModel):
     temperature: float = Field(0.0, ge=0, le=2, description="Sampling temperature")
     max_tokens: int | None = Field(None, gt=0, description="Optional cap on selector output")
 
+    # --- Laya backend fields (used when backend == 'laya') ---
+    laya_model: str = Field(
+        "convaiinnovations/laya",
+        description=(
+            "Laya checkpoint identifier. The default is the English root "
+            "checkpoint. Use 'multilingual' (or "
+            "'convaiinnovations/laya-multilingual') for 100+ languages "
+            "and longer documents."
+        ),
+    )
+    laya_device: str | None = Field(
+        None,
+        description=(
+            "Torch device override for Laya (e.g. 'cpu', 'cuda', 'mps'). "
+            "Defaults to Laya's auto-detection."
+        ),
+    )
+    laya_max_len: int | None = Field(
+        None,
+        gt=0,
+        description=(
+            "Override the per-call token budget for the Laya forward pass. "
+            "Mostly useful when scoring very long user prompts."
+        ),
+    )
+
     def resolved_api_key(self) -> str:
         """Return the API key, falling back to the provider's env var."""
+        if self.backend == "laya":
+            # LLM-backend fields are unused when running Laya.
+            return ""
         if self.api_key and not self.api_key.startswith("${"):
             return self.api_key
         if self.api_key and self.api_key.startswith("${"):
@@ -150,6 +216,15 @@ class SelectorConfig(BaseModel):
                 f"Set 'selector.api_key' or env var ${env_name}."
             )
         return val
+
+    @field_validator("model", mode="after")
+    @classmethod
+    def _require_model_for_llm(cls, v: str | None, info) -> str | None:
+        """``model`` is required only when the LLM backend is selected."""
+        backend = info.data.get("backend", "llm")
+        if backend == "llm" and not v:
+            raise ValueError("selector.model is required when selector.backend == 'llm'")
+        return v
 
 
 # --- Policy -------------------------------------------------------------------

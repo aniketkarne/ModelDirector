@@ -10,13 +10,29 @@ PolicyType = Literal["cheapest_capable", "highest_confidence", "best_value"]
 
 
 class ModelScore(BaseModel):
-    """Score assigned to a single candidate model by the selector."""
+    """Score assigned to a single candidate model by the selector.
+
+    The four capability axes (``reasoning`` / ``coding`` / ``context`` /
+    ``creativity``) are populated by the LLM backend. The ``laya`` backend
+    does not produce per-axis scores - it returns a single calibrated
+    probability per candidate, which becomes ``overall`` - so those
+    fields are left as ``None``.
+    """
 
     id: str = Field(..., description="The model profile id being scored")
     overall: int = Field(..., ge=0, le=100, description="Weighted overall confidence 0-100")
-    reasoning: int = Field(..., ge=0, le=100, description="Reasoning capability fit 0-100")
-    coding: int = Field(..., ge=0, le=100, description="Coding capability fit 0-100")
-    context: int = Field(..., ge=0, le=100, description="Context length fit 0-100")
+    reasoning: int | None = Field(
+        None, ge=0, le=100,
+        description="Reasoning capability fit 0-100. None when the selector does not produce per-axis scores.",
+    )
+    coding: int | None = Field(
+        None, ge=0, le=100,
+        description="Coding capability fit 0-100. None when the selector does not produce per-axis scores.",
+    )
+    context: int | None = Field(
+        None, ge=0, le=100,
+        description="Context length fit 0-100. None when the selector does not produce per-axis scores.",
+    )
     creativity: int | None = Field(None, ge=0, le=100, description="Optional creativity fit 0-100")
     explanation: str = Field(..., min_length=1, description="Why this model got this score")
 

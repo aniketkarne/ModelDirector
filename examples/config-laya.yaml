@@ -1,0 +1,91 @@
+# ModelDirector example config using the Laya selector backend.
+#
+# Laya is a non-autoregressive System-1 decision engine that scores the
+# candidate models in a single forward pass (~33 ms on GPU, longer on CPU).
+# No per-token cost - the model runs locally after the initial checkpoint
+# download (~800 MB for the English checkpoint).
+#
+# Install with:    pip install "modeldirector[laya]"
+# Run with:        modeldirector select -c examples/config-laya.yaml -p "Your task"
+# Or override:     modeldirector select -c examples/config.yaml --selector-backend laya -p "Your task"
+#
+# The first call will download the checkpoint; subsequent calls reuse it.
+
+selector:
+  backend: laya
+  # Laya-specific config (provider/model/api_key are ignored when backend == laya).
+  laya_model: convaiinnovations/laya   # use 'multilingual' for 100+ languages
+  laya_device: null                   # auto-detect (cuda / mps / cpu)
+  laya_max_len: null                   # default per-call token budget
+
+policy:
+  type: cheapest_capable
+  threshold: 50   # Laya confidence is a 0-1 probability; *100 is overall
+
+models:
+  - id: gpt5mini
+    name: openai/gpt-4o-mini
+    display_name: GPT-4o mini
+    description: |
+      OpenAI's small, fast, low-cost general-purpose model. Good for simple
+      classification, routing, short summarisation, and basic Q&A. Weaker at
+      long-horizon reasoning, complex multi-step code generation, and nuanced
+      prose.
+    strengths:
+      - classification
+      - routing
+      - short_summarisation
+      - simple_qa
+    capabilities:
+      reasoning: 65
+      coding: 70
+      context: 70
+      creativity: 60
+    priority: 1
+    cost:
+      input: 0.15
+      output: 0.60
+
+  - id: sonnet
+    name: anthropic/claude-3.5-sonnet
+    display_name: Claude 3.5 Sonnet
+    description: |
+      Anthropic's mid-tier model. Strong at coding, instruction following,
+      and long-context reasoning. 200k context window.
+    strengths:
+      - coding
+      - architecture
+      - long_context
+      - refactoring
+      - instruction_following
+    capabilities:
+      reasoning: 88
+      coding: 92
+      context: 95
+      creativity: 85
+    priority: 2
+    cost:
+      input: 3.00
+      output: 15.00
+
+  - id: opus
+    name: anthropic/claude-opus-4
+    display_name: Claude Opus 4
+    description: |
+      Anthropic's frontier model. Best-in-class reasoning, complex multi-step
+      planning, and nuanced code generation. Use only when cheaper models
+      are unlikely to succeed.
+    strengths:
+      - hard_reasoning
+      - complex_coding
+      - architecture_design
+      - long_horizon_planning
+    capabilities:
+      reasoning: 95
+      coding: 95
+      context: 99
+      creativity: 92
+    priority: 3
+    cost:
+      input: 15.00
+      output: 75.00

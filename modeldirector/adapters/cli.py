@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import copy
 import json
 import sys
 from pathlib import Path
@@ -34,6 +35,31 @@ def _read_prompt(prompt: Optional[str], file: Optional[Path]) -> str:
     )
 
 
+def _override_backend(cfg_dict: dict, backend: Optional[str]) -> dict:
+    """Return a copy of ``cfg_dict`` with ``selector.backend`` overridden if the
+    user passed ``--selector-backend`` on the CLI. Mutates the deep copy only."""
+    if not backend:
+        return cfg_dict
+    out = copy.deepcopy(cfg_dict)
+    sel = out.setdefault("selector", {})
+    if not isinstance(sel, dict):
+        raise click.UsageError(
+            "selector section in config must be a mapping when overriding --selector-backend"
+        )
+    sel["backend"] = backend
+    return out
+
+
+def _load_cfg(config_path: Path, backend_override: Optional[str]):
+    """Load + validate the config, optionally overriding the selector backend."""
+    cfg_dict = yaml.safe_load(config_path.read_text()) or {}
+    cfg_dict = _override_backend(cfg_dict, backend_override)
+    # Expand env vars the same way the loader does.
+    from modeldirector.loader import _expand_env
+    cfg_dict = _expand_env(cfg_dict)
+    return load_config(cfg_dict)
+
+
 @click.group()
 @click.version_option()
 def cli() -> None:
@@ -45,10 +71,24 @@ def cli() -> None:
 @click.option("--prompt", "-p", default=None, help="Prompt text. Use --file or stdin if omitted.")
 @click.option("--file", "-f", "file", default=None, type=click.Path(exists=True, path_type=Path))
 @click.option("--pretty/--compact", default=True, help="Pretty-print the JSON output.")
-def select(config_path: Path, prompt: Optional[str], file: Optional[Path], pretty: bool) -> None:
+@click.option(
+    "--selector-backend",
+    "selector_backend",
+    default=None,
+    type=click.Choice(["llm", "laya"], case_sensitive=False),
+    help="Override the selector backend from the config. 'laya' uses the "
+         "non-autoregressive Laya decision engine (cheap, no per-token cost).",
+)
+def select(
+    config_path: Path,
+    prompt: Optional[str],
+    file: Optional[Path],
+    pretty: bool,
+    selector_backend: Optional[str],
+) -> None:
     """Pick the best model for the given prompt."""
     text = _read_prompt(prompt, file)
-    cfg = load_config(config_path)
+    cfg = _load_cfg(config_path, selector_backend)
     director = ModelDirector(cfg)
     try:
         result = director.select(text)
@@ -63,10 +103,23 @@ def select(config_path: Path, prompt: Optional[str], file: Optional[Path], prett
 @click.option("--prompt", "-p", default=None)
 @click.option("--file", "-f", "file", default=None, type=click.Path(exists=True, path_type=Path))
 @click.option("--pretty/--compact", default=True)
-def score(config_path: Path, prompt: Optional[str], file: Optional[Path], pretty: bool) -> None:
+@click.option(
+    "--selector-backend",
+    "selector_backend",
+    default=None,
+    type=click.Choice(["llm", "laya"], case_sensitive=False),
+    help="Override the selector backend from the config.",
+)
+def score(
+    config_path: Path,
+    prompt: Optional[str],
+    file: Optional[Path],
+    pretty: bool,
+    selector_backend: Optional[str],
+) -> None:
     """Print raw per-model scores without applying a policy."""
     text = _read_prompt(prompt, file)
-    cfg = load_config(config_path)
+    cfg = _load_cfg(config_path, selector_backend)
     director = ModelDirector(cfg)
     try:
         scores = director.score(text)
@@ -86,7 +139,7 @@ def validate(config_path: Path) -> None:
         click.echo(f"Invalid: {e}", err=True)
         sys.exit(1)
     click.echo(f"OK - {len(cfg.models)} candidate model(s), policy={cfg.policy.type}, "
-               f"selector={cfg.selector.provider}/{cfg.selector.model}")
+               f"selector={cfg.selector.backend}/{cfg.selector.provider}/{cfg.selector.model or '-'}")
 
 
 @cli.command()

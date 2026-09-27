@@ -5,14 +5,22 @@ Output is printed to stdout (table + JSON) and written to
 ``benchmarks/output/results.json`` so the README can be generated from it.
 
 Usage:
+    # LLM backend (the default - needs an LLM API key)
     OPENROUTER_API_KEY=... .venv/bin/python -m benchmarks.run_benchmark
     OPENROUTER_API_KEY=... .venv/bin/python -m benchmarks.run_benchmark --config examples/config.yaml
-    OPENROUTER_API_KEY=... .venv/bin/python -m benchmarks.run_benchmark --out benchmarks/output/results.json
+
+    # Laya backend (no API key needed - Laya runs locally)
+    .venv/bin/python -m benchmarks.run_benchmark --selector-backend laya
+
+    # Compare both backends
+    .venv/bin/python -m benchmarks.run_benchmark --selector-backend laya -o results-laya.json
+    OPENROUTER_API_KEY=... .venv/bin/python -m benchmarks.run_benchmark -o results-llm.json
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import statistics
@@ -26,6 +34,8 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+
+import yaml  # noqa: E402
 
 from modeldirector.loader import load_config  # noqa: E402
 from modeldirector.models import SelectionResult  # noqa: E402
@@ -106,6 +116,7 @@ class TaskResult:
 class BenchmarkReport:
     timestamp: str
     config_path: str
+    selector_backend: str
     selector_model: str
     baseline_model: str
     baseline_cost_usd: float
@@ -113,11 +124,33 @@ class BenchmarkReport:
     errors: list[dict] = field(default_factory=list)
 
 
+# --- Config loading with backend override -------------------------------------
+
+
+def _load_cfg_with_backend(
+    config_path: Path, selector_backend: str | None
+) -> tuple:
+    """Load the config, optionally overriding ``selector.backend``.
+
+    Returns ``(Config, raw_dict_for_report)``.
+    """
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    if selector_backend:
+        raw = copy.deepcopy(raw)
+        sel = raw.setdefault("selector", {})
+        if not isinstance(sel, dict):
+            raise ValueError("selector section in config must be a mapping when overriding backend")
+        sel["backend"] = selector_backend
+    return load_config(raw), raw
+
+
 # --- Core run ----------------------------------------------------------------
 
 
-def run_benchmark(config_path: Path, baseline_id: str) -> BenchmarkReport:
-    cfg = load_config(config_path)
+def run_benchmark(
+    config_path: Path, baseline_id: str, selector_backend: str | None = None
+) -> BenchmarkReport:
+    cfg, raw_cfg = _load_cfg_with_backend(config_path, selector_backend)
     director = ModelDirector(cfg)
     profiles_by_id = {m.id: m for m in cfg.models}
     if baseline_id not in profiles_by_id:
@@ -137,10 +170,16 @@ def run_benchmark(config_path: Path, baseline_id: str) -> BenchmarkReport:
             f"(${baseline_cost:.2f}/1M input)."
         )
 
+    if cfg.selector.backend == "laya":
+        selector_model_str = f"laya:{cfg.selector.laya_model}"
+    else:
+        selector_model_str = f"{cfg.selector.provider}/{cfg.selector.model}"
+
     report = BenchmarkReport(
         timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         config_path=str(config_path),
-        selector_model=f"{cfg.selector.provider}/{cfg.selector.model}",
+        selector_backend=cfg.selector.backend,
+        selector_model=selector_model_str,
         baseline_model=baseline_id_resolved,
         baseline_cost_usd=baseline_cost,
     )
@@ -221,7 +260,8 @@ def render_report(report: BenchmarkReport) -> str:
     lines.append("=" * 70)
     lines.append(f"  Timestamp              : {report.timestamp}")
     lines.append(f"  Config                 : {report.config_path}")
-    lines.append(f"  Selector LLM           : {report.selector_model}")
+    lines.append(f"  Selector backend       : {report.selector_backend}")
+    lines.append(f"  Selector model         : {report.selector_model}")
     lines.append(f"  Baseline (always)      : {report.baseline_model} "
                  f"({_usd(report.baseline_cost_usd)}/1M input)")
     lines.append(f"  Tasks run              : {len(report.tasks)} / {len(TASKS)}")
@@ -292,17 +332,41 @@ def main() -> int:
         default=_ROOT / "benchmarks" / "output" / "results.json",
         help="Where to write the raw JSON report.",
     )
+    parser.add_argument(
+        "--selector-backend",
+        choices=["llm", "laya"],
+        default=None,
+        help="Override selector.backend. 'laya' runs the Laya decision engine "
+             "locally (no API key needed). 'llm' (default from the config) "
+             "needs OPENROUTER_API_KEY in the environment.",
+    )
     args = parser.parse_args()
 
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        print("ERROR: OPENROUTER_API_KEY not set.", file=sys.stderr)
-        return 1
     if not args.config.exists():
         print(f"ERROR: config not found: {args.config}", file=sys.stderr)
         return 1
 
+    # Only enforce OPENROUTER_API_KEY when we're actually going to hit an LLM.
+    backend = args.selector_backend
+    if backend is None:
+        # Infer from the config file directly so users can see the error
+        # before the long benchmark starts.
+        try:
+            raw_cfg = yaml.safe_load(args.config.read_text()) or {}
+            backend = raw_cfg.get("selector", {}).get("backend", "llm")
+        except Exception:
+            backend = "llm"
+    if backend == "llm" and not os.environ.get("OPENROUTER_API_KEY"):
+        print(
+            "ERROR: OPENROUTER_API_KEY not set. Required for the LLM backend.\n"
+            "       Set it, or pass --selector-backend laya to run the Laya "
+            "decision engine locally (no API key needed).",
+            file=sys.stderr,
+        )
+        return 1
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    report = run_benchmark(args.config, args.baseline)
+    report = run_benchmark(args.config, args.baseline, args.selector_backend)
     print(render_report(report))
     args.out.write_text(json.dumps(asdict(report), indent=2))
     print(f"  Raw JSON written to: {args.out}")
