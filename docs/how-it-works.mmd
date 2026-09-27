@@ -1,0 +1,11 @@
+flowchart LR
+    P[User prompt] --> E{{ModelDirector Engine}}
+    E -->|"selector.backend:<br/>llm (default)"| LLM["LLM judge<br/>LiteLLM, ~0.5–3 s<br/>~\$0.001–\$0.05/call"]
+    E -->|"selector.backend:<br/>laya"| LAYA["Laya decision engine<br/>single forward pass, \$0/call<br/>~33 ms GPU"]
+    LLM --> SL["scores<br/>{overall, reasoning, coding, context}"]
+    LAYA --> SY["scores<br/>{overall}"]
+    SL --> POL{Configured<br/>policy}
+    SY --> POL
+    POL -->|"cheapest_capable"| O["selected_model<br/>+ reason + cost"]
+    POL -->|"highest_confidence"| O
+    POL -->|"best_value"| O
