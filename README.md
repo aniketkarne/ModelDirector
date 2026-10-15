@@ -236,11 +236,45 @@ uv sync --all-extras
 
 ![How it works](docs/how-it-works.jpg)
 
-The selector is a small, fast LLM (e.g. `claude-3.5-haiku`, `gpt-4o-mini`,
-`qwen3-32b`) that gets a structured JSON prompt with your task, every
-candidate's profile (description, capabilities, **strengths**, and **real
-cost per 1M tokens**), and a strict scoring rubric. It returns scores only —
-the decision logic is yours.
+> ⚠️ The marketing diagram above is from v0.1 — it shows the
+> `reasoning`/`coding`/`context`/`creativity` axes, which are only produced
+> by the `llm` backend. For the **accurate, post-v0.2 architecture** see
+> the diagram below (or [`docs/how-it-works.mmd`](docs/how-it-works.mmd)
+> for the editable source).
+
+```mermaid
+flowchart LR
+    P[User prompt] --> E{{ModelDirector Engine}}
+    E -->|"selector.backend:<br/>llm (default)"| LLM["LLM judge<br/>LiteLLM, ~0.5–3 s<br/>~\\$0.001–\\$0.05/call"]
+    E -->|"selector.backend:<br/>laya"| LAYA["Laya decision engine<br/>single forward pass, \\$0/call<br/>~33 ms GPU"]
+    LLM --> SL["scores<br/>{overall, reasoning, coding, context}"]
+    LAYA --> SY["scores<br/>{overall}"]
+    SL --> POL{Configured<br/>policy}
+    SY --> POL
+    POL -->|"cheapest_capable"| O["selected_model<br/>+ reason + cost"]
+    POL -->|"highest_confidence"| O
+    POL -->|"best_value"| O
+```
+
+Static fallback for renderers without Mermaid support:
+[`docs/how-it-works-v2.png`](docs/how-it-works-v2.png).
+
+The **selector** asks "which of these candidates should handle this prompt?"
+Two backends ship today:
+
+* **`llm`** (default) — a small, fast LLM (e.g. `claude-3.5-haiku`,
+  `gpt-4o-mini`, `qwen3-32b`) gets a structured JSON prompt with your
+  task, every candidate's profile (description, capabilities,
+  **strengths**, and **real cost per 1M tokens**), and a strict scoring
+  rubric. Returns per-axis scores (`overall`, `reasoning`, `coding`,
+  `context`, optional `creativity`).
+* **`laya`** — the [Laya decision engine](docs/laya.md) runs a single
+  forward pass and returns a calibrated probability per candidate, which
+  becomes `overall`. The four per-axis fields are left as `null` —
+  `cheapest_capable`, `highest_confidence`, and `best_value` all still
+  work on `overall` alone.
+
+The decision logic is yours. The engine returns scores only.
 
 **Three built-in policies:**
 
@@ -499,7 +533,10 @@ modeldirector/
 ├── tests/                   # 56 unit tests (47 selector + 9 laya backend)
 ├── docs/
 │   ├── hero.jpg             # README hero (top)
-│   └── how-it-works.jpg     # "How it works" section diagram
+│   ├── how-it-works.jpg     # legacy v0.1 marketing diagram
+│   ├── how-it-works.mmd     # Mermaid source for the post-v0.2 architecture diagram
+│   ├── how-it-works-v2.png  # rendered PNG of the Mermaid source (for non-Mermaid renderers)
+│   └── laya.md              # Laya backend docs
 ├── prd.md
 ├── pyproject.toml
 └── README.md
