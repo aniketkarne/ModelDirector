@@ -105,8 +105,13 @@ def _call_selector(prompt: str, sel: SelectorConfig) -> str:
             },
             {"role": "user", "content": prompt},
         ],
-        "temperature": sel.temperature,
     }
+    # Only send temperature when explicitly configured. Current reasoning
+    # models (Claude 4.7+, OpenAI reasoning models) return HTTP 400 on
+    # non-default sampling params, so an unconditional 0.0 breaks every
+    # selector swap to a current model.
+    if sel.temperature is not None:
+        kwargs["temperature"] = sel.temperature
     if sel.api_key:
         kwargs["api_key"] = sel.resolved_api_key()
     if sel.api_base:

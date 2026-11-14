@@ -8,21 +8,26 @@
 # Model ids are model names, not tier labels. The engine does not know what
 # "cheap" or "premium" mean - you name the candidates, declare their real
 # per-1M-token cost, and tag their strengths. The policy decides.
+#
+# Selector and candidate model ids + per-1M-token prices below were verified
+# against the OpenRouter catalog on 2026-11-14.
 
 selector:
   provider: openrouter
-  model: anthropic/claude-3.5-haiku
+  model: openai/gpt-6-luna
   # api_key is read from $OPENROUTER_API_KEY by default.
-  temperature: 0.0
+  # temperature is deliberately unset: current reasoning models reject
+  # non-default sampling params (HTTP 400). Set it only for models that
+  # accept it.
 
 policy:
   type: cheapest_capable
   threshold: 80   # require >= 80% confidence before accepting a model
 
 models:
-  - id: gpt5mini
-    name: openai/gpt-4o-mini
-    display_name: GPT-4o mini
+  - id: luna
+    name: openai/gpt-6-luna
+    display_name: GPT-6 Luna
     description: |
       OpenAI's small, fast, low-cost general-purpose model. Good for simple
       classification, routing, short summarisation, and basic Q&A. Weaker at
@@ -40,12 +45,12 @@ models:
       creativity: 60
     priority: 1
     cost:
-      input: 0.15     # USD per 1M input tokens
-      output: 0.60    # USD per 1M output tokens
+      input: 0.10     # USD per 1M input tokens
+      output: 0.50    # USD per 1M output tokens
 
   - id: sonnet
-    name: anthropic/claude-3.5-sonnet
-    display_name: Claude 3.5 Sonnet
+    name: anthropic/claude-sonnet-5.5
+    display_name: Claude Sonnet 5.5
     description: |
       Anthropic's mid-tier model. Strong at coding, instruction following,
       and long-context reasoning. 200k context window. The default workhorse
@@ -63,12 +68,12 @@ models:
       creativity: 85
     priority: 2
     cost:
-      input: 3.00
-      output: 15.00
+      input: 2.00
+      output: 10.00
 
   - id: opus
-    name: anthropic/claude-opus-4
-    display_name: Claude Opus 4
+    name: anthropic/claude-opus-5.5
+    display_name: Claude Opus 5.5
     description: |
       Anthropic's frontier model. Best-in-class reasoning, complex multi-step
       planning, and nuanced code generation. Use only when cheaper models
@@ -85,5 +90,5 @@ models:
       creativity: 92
     priority: 3
     cost:
-      input: 15.00
-      output: 75.00
+      input: 4.00
+      output: 20.00

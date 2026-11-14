@@ -14,13 +14,14 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from modeldirector import __version__
 from modeldirector.loader import load_config
 from modeldirector.selector import ModelDirector, SelectorError
 
 app = FastAPI(
     title="ModelDirector",
     description="Stateless AI model selection engine.",
-    version="0.1.0",
+    version=__version__,
 )
 
 # Load the default config from MODELDIRECTOR_CONFIG env var once at startup.

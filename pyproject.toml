@@ -1,6 +1,6 @@
 [project]
 name = "modeldirector"
-version = "0.1.0"
+version = "0.2.0"
 description = "Stateless AI model selection engine. Picks the cheapest capable model for a task."
 readme = "README.md"
 license = { text = "MIT" }
@@ -38,6 +38,16 @@ laya = [
     # See docs/laya.md and `selector.backend: laya` in the config.
     "laya>=0.3",
 ]
+rest = [
+    # What the REST adapter needs. fastapi/uvicorn also ship as core deps so
+    # `modeldirector.adapters.rest` always imports; this extra makes the
+    # README's `pip install "modeldirector[rest]"` honest.
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+all = [
+    "modeldirector[mcp,laya,rest]",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -47,6 +57,13 @@ dev = [
 
 [project.scripts]
 modeldirector = "modeldirector.adapters.cli:cli"
+modeldirector-mcp = "modeldirector.adapters.mcp:main"
+
+[project.urls]
+Homepage = "https://github.com/aniketkarne/ModelDirector"
+Repository = "https://github.com/aniketkarne/ModelDirector"
+Issues = "https://github.com/aniketkarne/ModelDirector/issues"
+Changelog = "https://github.com/aniketkarne/ModelDirector/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]

@@ -170,7 +170,17 @@ class SelectorConfig(BaseModel):
         ),
     )
     api_base: str | None = Field(None, description="Optional base URL override")
-    temperature: float = Field(0.0, ge=0, le=2, description="Sampling temperature")
+    temperature: float | None = Field(
+        None,
+        ge=0,
+        le=2,
+        description=(
+            "Sampling temperature. Unset (default) means the provider default "
+            "and the parameter is not sent at all - current reasoning models "
+            "reject non-default sampling params with HTTP 400. Set explicitly "
+            "only for models that accept it."
+        ),
+    )
     max_tokens: int | None = Field(None, gt=0, description="Optional cap on selector output")
 
     # --- Laya backend fields (used when backend == 'laya') ---

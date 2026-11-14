@@ -10,6 +10,8 @@
 # Or override:     modeldirector select -c examples/config.yaml --selector-backend laya -p "Your task"
 #
 # The first call will download the checkpoint; subsequent calls reuse it.
+# Candidate ids, names and prices mirror examples/config.yaml (verified
+# against the OpenRouter catalog on 2026-11-14).
 
 selector:
   backend: laya
@@ -23,9 +25,9 @@ policy:
   threshold: 50   # Laya confidence is a 0-1 probability; *100 is overall
 
 models:
-  - id: gpt5mini
-    name: openai/gpt-4o-mini
-    display_name: GPT-4o mini
+  - id: luna
+    name: openai/gpt-6-luna
+    display_name: GPT-6 Luna
     description: |
       OpenAI's small, fast, low-cost general-purpose model. Good for simple
       classification, routing, short summarisation, and basic Q&A. Weaker at
@@ -43,12 +45,12 @@ models:
       creativity: 60
     priority: 1
     cost:
-      input: 0.15
-      output: 0.60
+      input: 0.10
+      output: 0.50
 
   - id: sonnet
-    name: anthropic/claude-3.5-sonnet
-    display_name: Claude 3.5 Sonnet
+    name: anthropic/claude-sonnet-5.5
+    display_name: Claude Sonnet 5.5
     description: |
       Anthropic's mid-tier model. Strong at coding, instruction following,
       and long-context reasoning. 200k context window.
@@ -65,12 +67,12 @@ models:
       creativity: 85
     priority: 2
     cost:
-      input: 3.00
-      output: 15.00
+      input: 2.00
+      output: 10.00
 
   - id: opus
-    name: anthropic/claude-opus-4
-    display_name: Claude Opus 4
+    name: anthropic/claude-opus-5.5
+    display_name: Claude Opus 5.5
     description: |
       Anthropic's frontier model. Best-in-class reasoning, complex multi-step
       planning, and nuanced code generation. Use only when cheaper models
@@ -87,5 +89,5 @@ models:
       creativity: 92
     priority: 3
     cost:
-      input: 15.00
-      output: 75.00
+      input: 4.00
+      output: 20.00
