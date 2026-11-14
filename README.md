@@ -23,20 +23,20 @@ auditable decision trace.
 ```
 $ echo "Translate 'hello' to Spanish." | modeldirector select -c config.yaml
 {
-  "selected_model": "gpt5mini",
+  "selected_model": "luna",
   "policy": "cheapest_capable",
   "scores": {
-    "gpt5mini": { "overall": 92, "reasoning": 80, "coding": 85, "context": 90, "explanation": "..." },
-    "sonnet":   { "overall": 95, "reasoning": 90, "coding": 92, "context": 95, "explanation": "..." },
-    "opus":     { "overall": 99, "reasoning": 99, "coding": 97, "context": 99, "explanation": "..." }
+    "luna":   { "overall": 92, "reasoning": 80, "coding": 85, "context": 90, "explanation": "..." },
+    "sonnet": { "overall": 95, "reasoning": 90, "coding": 92, "context": 95, "explanation": "..." },
+    "opus":   { "overall": 99, "reasoning": 99, "coding": 97, "context": 99, "explanation": "..." }
   },
   "estimated_cost_usd": {
-    "gpt5mini": 0.0001,
-    "sonnet":   0.0020,
-    "opus":     0.0100
+    "luna":   0.00012,
+    "sonnet": 0.0024,
+    "opus":   0.0048
   },
-  "input_tokens": 7,
-  "reason": "'gpt5mini' is the first model exceeding the threshold of 80 (overall=92, priority=1, cost=$0.15/1M in, $0.60/1M out)."
+  "input_tokens": 200,
+  "reason": "'luna' is the first model exceeding the threshold of 80 (overall=92, priority=1, cost=$0.10/1M in, $0.50/1M out)."
 }
 ```
 
@@ -91,28 +91,25 @@ caller.
 
 ## Install
 
-```bash
-# Core (SDK + CLI)
-pip install modeldirector
+Not published to PyPI yet — install from this repo:
 
-# With REST adapter
-pip install "modeldirector[rest]"
+```bash
+git clone https://github.com/aniketkarne/ModelDirector
+cd ModelDirector
+
+# Core (SDK + CLI + REST adapter)
+pip install .
 
 # With MCP adapter (for Claude Desktop, Continue, etc.)
-pip install "modeldirector[mcp]"
+pip install ".[mcp]"
 
 # With the Laya decision engine backend (cheap, self-hosted selector)
-pip install "modeldirector[laya]"
+pip install ".[laya]"
 
 # Everything
-pip install "modeldirector[all]"
-```
+pip install ".[all]"
 
-Or from this repo:
-
-```bash
-git clone https://github.com/aniketkarne-com/ModelDirector
-cd ModelDirector
+# Or, for development:
 uv sync --all-extras
 ```
 
@@ -132,17 +129,19 @@ uv sync --all-extras
     ```yaml
     selector:
       provider: openrouter
-      model: anthropic/claude-3.5-haiku  # small, fast, JSON-reliable
-      temperature: 0.0
+      model: openai/gpt-6-luna   # small, fast, JSON-reliable
+      # temperature is deliberately unset: current reasoning models
+      # reject non-default sampling params. Set it only if your model
+      # accepts it.
 
     policy:
       type: cheapest_capable
       threshold: 80
 
     models:
-      - id: gpt5mini                 # model id = model name, no tier labels
-        name: openai/gpt-4o-mini
-        display_name: GPT-4o mini
+      - id: luna                  # model id = model name, no tier labels
+        name: openai/gpt-6-luna
+        display_name: GPT-6 Luna
         description: |
           OpenAI's small, fast, low-cost model. Good for classification,
           routing, short summarisation, and basic Q&A. Weaker at long-
@@ -154,12 +153,12 @@ uv sync --all-extras
         capabilities: { reasoning: 65, coding: 70, context: 70 }
         priority: 1
         cost:                          # USD per 1M tokens (input / output)
-          input: 0.15
-          output: 0.60
+          input: 0.10
+          output: 0.50
 
       - id: sonnet
-        name: anthropic/claude-3.5-sonnet
-        display_name: Claude 3.5 Sonnet
+        name: anthropic/claude-sonnet-5.5
+        display_name: Claude Sonnet 5.5
         description: |
           Anthropic's mid-tier model. Strong at coding, architecture,
           and long-context reasoning. 200k context window.
@@ -171,12 +170,12 @@ uv sync --all-extras
         capabilities: { reasoning: 88, coding: 92, context: 95 }
         priority: 2
         cost:
-          input: 3.00
-          output: 15.00
+          input: 2.00
+          output: 10.00
 
       - id: opus
-        name: anthropic/claude-opus-4
-        display_name: Claude Opus 4
+        name: anthropic/claude-opus-5.5
+        display_name: Claude Opus 5.5
         description: |
           Anthropic's frontier model. Best reasoning, complex multi-step
           planning, nuanced code generation.
@@ -187,8 +186,8 @@ uv sync --all-extras
         capabilities: { reasoning: 95, coding: 95, context: 99 }
         priority: 3
         cost:
-          input: 15.00
-          output: 75.00
+          input: 4.00
+          output: 20.00
     ```
 
 2. **Select a model for any prompt:**
@@ -262,9 +261,9 @@ Static fallback for renderers without Mermaid support:
 The **selector** asks "which of these candidates should handle this prompt?"
 Two backends ship today:
 
-* **`llm`** (default) — a small, fast LLM (e.g. `claude-3.5-haiku`,
-  `gpt-4o-mini`, `qwen3-32b`) gets a structured JSON prompt with your
-  task, every candidate's profile (description, capabilities,
+* **`llm`** (default) — a small, fast LLM (e.g. `anthropic/claude-haiku-5.5`,
+  `openai/gpt-6-luna`, `qwen/qwen3-32b`) gets a structured JSON prompt with
+  your task, every candidate's profile (description, capabilities,
   **strengths**, and **real cost per 1M tokens**), and a strict scoring
   rubric. Returns per-axis scores (`overall`, `reasoning`, `coding`,
   `context`, optional `creativity`).
@@ -273,6 +272,17 @@ Two backends ship today:
   becomes `overall`. The four per-axis fields are left as `null` —
   `cheapest_capable`, `highest_confidence`, and `best_value` all still
   work on `overall` alone.
+
+**Recommended selector:** a small model from a *different vendor* than your
+candidates (e.g. `openai/gpt-6-luna` for an Anthropic-heavy candidate set,
+or vice versa). Same-vendor selectors tend to favour their own family's
+capabilities in their own scoring — the policy then rubber-stamps that
+bias. Pick cross-vendor and you get a more honest score.
+
+`examples/config.yaml` ships with `openai/gpt-6-luna` as the selector and
+an Anthropic-heavy candidate set on purpose; swap to your own providers as
+needed. Other small JSON-reliable options: `anthropic/claude-haiku-5.5`,
+`google/gemini-2.5-flash`, `qwen/qwen3-32b`.
 
 The decision logic is yours. The engine returns scores only.
 
@@ -311,7 +321,7 @@ models should handle this prompt?" Two backends ship today:
 | `model`       | llm      | —                              | Model name (LiteLLM format). Ignored when `backend: laya`. |
 | `api_key`     | no       | env (`${PROVIDER}_API_KEY`)    | Falls back to the provider's env var. Ignored when `backend: laya`. |
 | `api_base`    | no       | —                              | Override the API base URL. Ignored when `backend: laya`. |
-| `temperature` | no       | `0.0`                          | Sampling temperature. |
+| `temperature` | no       | unset                          | Sampling temperature. Sent to the API only when set — current reasoning models reject non-default sampling params (HTTP 400). |
 | `max_tokens`  | no       | —                              | Cap on the selector's response. |
 | `laya_model`  | no       | `convaiinnovations/laya`       | Laya checkpoint id. Use `multilingual` for 100+ languages and longer context. Ignored when `backend: llm`. |
 | `laya_device` | no       | auto                           | `"cpu"`, `"cuda"`, `"mps"`. Ignored when `backend: llm`. |
@@ -336,7 +346,7 @@ models should handle this prompt?" Two backends ship today:
 | `strengths`    | no       | `[]`        | **Strongly recommended.** Structured task-type tags (e.g. `coding`, `architecture`, `long_context`). More reliable for small selectors than relying on the model name. |
 | `capabilities` | yes      | —           | `reasoning`, `coding`, `context` required, `creativity` optional (0-100) |
 | `priority`     | no       | `1`         | Lower = preferred. Tie-breaker for `cheapest_capable`. |
-| `cost`         | yes      | —           | Per-1M-token cost in USD. `cost: {input: 0.15, output: 0.60}` for new configs. A bare number is accepted for back-compat and treated as `input=output=x`. |
+| `cost`         | yes      | —           | Per-1M-token cost in USD. `cost: {input: 0.10, output: 0.50}` for new configs. A bare number is accepted for back-compat and treated as `input=output=x`. |
 
 ---
 
@@ -357,18 +367,20 @@ The same engine powers all four. Adapters are thin translation layers.
 
 ```
 $ pytest tests/ -q -m "not integration"
-47 passed in 0.06s
+65 passed, 4 deselected in 0.11s
 ```
 
 Includes:
 
-- **43 unit tests** for the policy engine, config loader, cost estimator,
-  and selector (no network) — `pytest tests/`
+- **65 unit tests** for the policy engine, config loader, cost estimator,
+  selector, Laya backend, and packaging (no network) — `pytest tests/`
+  (47 selector/config/policy + 9 Laya backend + 9 release hygiene)
 - **4 integration tests** that hit OpenRouter with a real selector LLM —
   `pytest tests/test_integration.py` (skipped automatically if
   `OPENROUTER_API_KEY` isn't set)
 
-CI on every commit runs the unit suite. The integration suite is opt-in
+CI (`.github/workflows/tests.yml`) runs the unit suite on every push and
+pull request against Python 3.11 and 3.12. The integration suite is opt-in
 (`pytest -m integration`).
 
 ---
@@ -530,7 +542,7 @@ modeldirector/
 ├── examples/
 │   ├── config.yaml          # ready-to-use config (LLM backend)
 │   └── config-laya.yaml     # ready-to-use config (Laya backend)
-├── tests/                   # 56 unit tests (47 selector + 9 laya backend)
+├── tests/                   # 65 unit tests (47 selector + 9 laya + 9 packaging)
 ├── docs/
 │   ├── hero.jpg             # README hero (top)
 │   ├── how-it-works.jpg     # legacy v0.1 marketing diagram
@@ -575,7 +587,7 @@ MIT. See [LICENSE](LICENSE).
 ## Contributing
 
 PRs welcome. Bug reports and feature requests go in
-[GitHub Issues](https://github.com/aniketkarne-com/ModelDirector/issues).
+[GitHub Issues](https://github.com/aniketkarne/ModelDirector/issues).
 
 For substantial changes, open an issue first to discuss the design — this
 project prizes a small, stable API surface.

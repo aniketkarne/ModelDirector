@@ -56,8 +56,15 @@ def score_models(prompt: str) -> dict:
     return {k: v.model_dump() for k, v in scores.items()}
 
 
-if __name__ == "__main__":  # pragma: no cover
+def main() -> None:
+    """Console-script entry point: ``modeldirector-mcp CONFIG.yaml``."""
     import sys
-    if len(sys.argv) > 1:
-        configure(sys.argv[1])
+
+    if len(sys.argv) != 2:
+        print("Usage: modeldirector-mcp CONFIG.yaml", file=sys.stderr)
+        raise SystemExit(2)
+    configure(sys.argv[1])
     mcp.run()
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

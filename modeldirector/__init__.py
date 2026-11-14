@@ -6,7 +6,7 @@ from modeldirector.models import ModelScore, SelectionResult
 from modeldirector.policy import Policy, select_model
 from modeldirector.selector import ModelDirector
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "Config",
